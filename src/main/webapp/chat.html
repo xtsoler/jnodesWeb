@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>WS Demo</title>
+</head>
+<body>
+<h2>WS Demo (Jakarta WebSocket + Tomcat 11)</h2>
+<div id="log" style="border:1px solid #ccc;height:200px;overflow-y:auto;"></div>
+<input id="msg" type="text" placeholder="Type a message">
+<button onclick="sendMsg()">Send</button>
+
+<script>
+const log = document.getElementById('log');
+const input = document.getElementById('msg');
+
+// Adjust context path if you rename the WAR
+const ws = new WebSocket(`ws://${location.host}/jnodesWeb/feed`);
+
+ws.onopen = () => append('Connected.');
+ws.onmessage = e => append('Server: ' + e.data);
+ws.onclose = () => append('Disconnected.');
+ws.onerror = e => append('Error: ' + e);
+
+function sendMsg() {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(input.value);
+        input.value = '';
+    }
+}
+
+function append(text) {
+    const line = document.createElement('div');
+    line.textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+</script>
+</body>
+</html>

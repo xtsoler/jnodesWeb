@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Map Snapshot Demo</title>
+        <style>
+            html, body {
+                margin: 0;
+                padding: 0;
+                height: 100%;
+                width: 100%;
+                overflow: hidden;
+                background: #111;
+                color: #eee;
+                font-family: sans-serif;
+            }
+            #container {
+                width: 100vw;
+                height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #111;
+            }
+            #mapCanvas {
+                background: #222;
+            }
+            #status {
+                position: fixed;
+                bottom: 8px;
+                left: 8px;
+                font-size: 0.9em;
+                color: #00e0c6; /* bright teal */
+                background: rgba(0, 0, 0, 0.45); /* subtle dark backdrop */
+                padding: 6px 10px;
+                border-radius: 6px;
+                backdrop-filter: blur(4px); /* softens the look on supported browsers */
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <canvas id="mapCanvas"></canvas>
+        </div>
+        <div id="status">Waiting for first image...</div>
+
+        <script>
+            const REFRESH_MS = 4000;          // refresh interval
+            const IMG_URL_BASE = 'map.png';   // adjust if needed
+
+            const canvas = document.getElementById('mapCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // offscreen buffer (always holds image at native size)
+            const bufferCanvas = document.createElement('canvas');
+            const bufferCtx = bufferCanvas.getContext('2d');
+
+            const statusEl = document.getElementById('status');
+
+            // last loaded image dimensions
+            let lastImgWidth = 0;
+            let lastImgHeight = 0;
+            let hasImage = false;
+
+            function updateStatus(text) {
+                statusEl.textContent = text;
+            }
+
+            function resizeCanvasToWindow() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                // if we already have an image, redraw it scaled to new size
+                if (hasImage) {
+                    drawScaledFromBuffer();
+                }
+            }
+
+            function drawScaledFromBuffer() {
+                if (!hasImage || lastImgWidth === 0 || lastImgHeight === 0)
+                    return;
+
+                const cw = canvas.width;
+                const ch = canvas.height;
+                const iw = lastImgWidth;
+                const ih = lastImgHeight;
+
+                // scale to fit inside the window, preserving aspect ratio
+                const scale = Math.min(cw / iw, ch / ih);
+                const drawWidth = iw * scale;
+                const drawHeight = ih * scale;
+
+                const offsetX = (cw - drawWidth) / 2;
+                const offsetY = (ch - drawHeight) / 2;
+
+                ctx.clearRect(0, 0, cw, ch);
+                ctx.drawImage(bufferCanvas, 0, 0, iw, ih, offsetX, offsetY, drawWidth, drawHeight);
+            }
+
+            function loadAndDraw() {
+                const img = new Image();
+                // avoid cached version
+                img.src = IMG_URL_BASE + '?t=' + Date.now();
+
+                img.onload = () => {
+                    lastImgWidth = img.width;
+                    lastImgHeight = img.height;
+                    hasImage = true;
+
+                    // resize buffer to image size
+                    bufferCanvas.width = img.width;
+                    bufferCanvas.height = img.height;
+
+                    // draw full image onto buffer at native resolution
+                    bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
+                    bufferCtx.drawImage(img, 0, 0);
+
+                    // ensure canvas matches window size, then draw scaled
+                    resizeCanvasToWindow();
+                    updateStatus('Last update: ' + new Date().toLocaleTimeString());
+                };
+
+                img.onerror = () => {
+                    updateStatus('Error loading map.png');
+                };
+            }
+
+            // initial sizing + first load
+            resizeCanvasToWindow();
+            loadAndDraw();
+
+            // periodic refresh
+            setInterval(loadAndDraw, REFRESH_MS);
+
+            // handle window resize
+            window.addEventListener('resize', resizeCanvasToWindow);
+        </script>
+    </body>
+</html>
