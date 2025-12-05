@@ -17,14 +17,13 @@
     </properties>
 
     <dependencies>
-        <!--jnodes local dependency -->
         <dependency>
             <groupId>jnodes_local</groupId>
             <artifactId>com.jnodes</artifactId>
             <version>1.2</version>
+            <scope>provided</scope>
         </dependency>
-        
-        <!-- Servlet API (Tomcat 11 provides it at runtime) -->
+
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
@@ -32,12 +31,11 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- WebSocket API - put on compile classpath explicitly -->
         <dependency>
             <groupId>jakarta.websocket</groupId>
             <artifactId>jakarta.websocket-api</artifactId>
-            <version>2.3.0-M1</version>
-            <!-- no scope: compile by default -->
+            <version>2.2.0</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -58,6 +56,17 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <version>3.3.1</version>
+                <configuration>
+                    <webResources>
+                        <resource>
+                            <directory>${basedir}/lib</directory>
+                            <targetPath>WEB-INF/lib</targetPath>
+                            <includes>
+                                <include>jnodesOne-jar-with-dependencies.jar</include>
+                            </includes>
+                        </resource>
+                    </webResources>
+                    </configuration>
             </plugin>
         </plugins>
     </build>
