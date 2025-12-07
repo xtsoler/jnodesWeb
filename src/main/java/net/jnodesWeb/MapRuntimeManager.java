@@ -11,7 +11,6 @@ import jnodes3clientse.Main;
 
 public class MapRuntimeManager {
 
-    // Current map id (if running)
     private static volatile String mapId = null;
     private static volatile boolean mapRunning = false;
 
@@ -19,14 +18,12 @@ public class MapRuntimeManager {
     private static final AtomicLong lastActivity = new AtomicLong(0L);
     private static ScheduledExecutorService scheduler;
 
-    private static final long IDLE_TIMEOUT_MS = 20_000L; // 90 seconds
+    private static final long IDLE_TIMEOUT_MS = 20_000L; // 20 seconds
 
-    // Call on each /map.png request
     public static void noteActivity() {
         lastActivity.set(System.currentTimeMillis());
     }
 
-    // Call on each /map.png request to ensure map is running
     public static void ensureStarted() {
         synchronized (LOCK) {
             if (mapRunning) {
@@ -35,23 +32,37 @@ public class MapRuntimeManager {
 
             try {
                 String catalinaBase = System.getProperty("catalina.base");
-                Path mapFile = Path.of(catalinaBase, "conf", "map.json");
+
+                // Ensure conf/jnodesWeb exists
+                Path jnodesConfDir = Path.of(catalinaBase, "conf", "jnodesWeb");
+                try {
+                    if (!Files.exists(jnodesConfDir)) {
+                        Files.createDirectories(jnodesConfDir);
+                        System.out.println("[MapRuntimeManager] Created directory: " + jnodesConfDir);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[MapRuntimeManager] Failed to create directory: " + jnodesConfDir);
+                    e.printStackTrace();
+                    return;
+                }
+
+                Path mapFile = jnodesConfDir.resolve("map.json");
                 System.out.println("[MapRuntimeManager] Starting map, looking for: " + mapFile);
 
                 if (!Files.exists(mapFile)) {
-                    System.out.println("[MapRuntimeManager] map.json not found, cannot start map.");
+                    System.out.println("[MapRuntimeManager] map.json not found in jnodesWeb folder, cannot start map.");
                     return;
                 }
 
-                Path encryptionFile = Path.of(catalinaBase, "conf", "encryption.key");
+                Path encryptionFile = jnodesConfDir.resolve("encryption.key");
                 System.out.println("[MapRuntimeManager] Looking for: " + encryptionFile);
 
                 if (!Files.exists(encryptionFile)) {
-                    System.out.println("[MapRuntimeManager] encryption.key not found, cannot start map.");
+                    System.out.println("[MapRuntimeManager] encryption.key not found in jnodesWeb folder, cannot start map.");
                     return;
                 }
 
-                Main.encryption_password = java.nio.file.Files.readString(encryptionFile).trim();
+                Main.encryption_password = Files.readString(encryptionFile).trim();
 
                 // create map / start pollers via storage
                 String id = storage.addMapFromFile(mapFile.toString());
@@ -61,7 +72,6 @@ public class MapRuntimeManager {
 
                 System.out.println("[MapRuntimeManager] Map started, id=" + mapId);
 
-                // lazily start idle-check scheduler
                 if (scheduler == null) {
                     scheduler = Executors.newSingleThreadScheduledExecutor();
                     scheduler.scheduleAtFixedRate(MapRuntimeManager::checkIdle, 30, 30, TimeUnit.SECONDS);
@@ -74,7 +84,6 @@ public class MapRuntimeManager {
         }
     }
 
-    // Get a fresh mapData snapshot for rendering
     public static message.mapData getCurrentMap() {
         synchronized (LOCK) {
             if (!mapRunning || mapId == null) {
@@ -84,7 +93,6 @@ public class MapRuntimeManager {
         }
     }
 
-    // Optional: to be called from a context listener on app shutdown, if you add one later
     public static void shutdown() {
         synchronized (LOCK) {
             if (scheduler != null) {
@@ -100,8 +108,6 @@ public class MapRuntimeManager {
         }
     }
 
-    // ---- internal ----
-
     private static void checkIdle() {
         long now = System.currentTimeMillis();
         long idleFor = now - lastActivity.get();
@@ -110,8 +116,8 @@ public class MapRuntimeManager {
             synchronized (LOCK) {
                 long idleCheck = System.currentTimeMillis() - lastActivity.get();
                 if (mapRunning && idleCheck > IDLE_TIMEOUT_MS) {
-                    System.out.println("[MapRuntimeManager] Idle for " + idleCheck +
-                            " ms, stopping map id=" + mapId);
+                    System.out.println("[MapRuntimeManager] Idle for " + idleCheck
+                            + " ms, stopping map id=" + mapId);
                     if (mapId != null) {
                         storage.deleteMap(mapId);
                     }
