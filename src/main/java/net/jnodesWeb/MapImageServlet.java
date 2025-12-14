@@ -23,14 +23,32 @@ public class MapImageServlet extends HttpServlet {
         MapRuntimeManager.noteActivity();
         MapRuntimeManager.ensureStarted();
 
-        // get current map snapshot
-        mapData map = MapRuntimeManager.getCurrentMap();
-        if (map == null) {
-            resp.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                    "Map not available (not started or failed to start)");
-            return;
+        // NEW: support multiple maps by name.
+        // Usage:
+        //   /map.png?name=office   -> serves image for office.json
+        //   /map.png              -> backward-compatible: serves default map (first loaded)
+        String name = req.getParameter("name");
+
+        mapData map;
+        if (name != null && !name.isEmpty()) {
+            // serve requested map by base filename
+            map = MapRuntimeManager.getMapByName(name);
+            if (map == null) {
+                resp.sendError(HttpServletResponse.SC_NOT_FOUND,
+                        "Map not found: " + name + " (expected " + name + ".json to be loaded)");
+                return;
+            }
+        } else {
+            // backward compatible default map
+            map = MapRuntimeManager.getCurrentMap();
+            if (map == null) {
+                resp.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                        "Map not available (not started or failed to start)");
+                return;
+            }
         }
 
+        // Render on demand (keeps old behavior)
         BufferedImage img = MapScreenshotUtil.renderMapToImage(map);
 
         resp.setContentType("image/png");
