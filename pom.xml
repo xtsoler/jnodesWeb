@@ -18,10 +18,11 @@
 
     <dependencies>
         <dependency>
-            <groupId>jnodes_local</groupId>
-            <artifactId>com.jnodes</artifactId>
+            <groupId>net.jnodes</groupId>
+            <artifactId>jnodesOne</artifactId>
             <version>1.2</version>
-            <scope>provided</scope>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/jnodesOne-jar-with-dependencies.jar</systemPath>
         </dependency>
 
         <dependency>
@@ -66,7 +67,7 @@
                             </includes>
                         </resource>
                     </webResources>
-                    </configuration>
+                </configuration>
             </plugin>
         </plugins>
     </build>

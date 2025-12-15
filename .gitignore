@@ -28,3 +28,5 @@ map*.json
 tmp.mpd
 encryption.key
 /target/
+
+!lib/*.jar
