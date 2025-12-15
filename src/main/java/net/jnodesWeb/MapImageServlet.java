@@ -12,7 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jnodes3clientse.MapScreenshotUtil;
 import message.mapData;
 
-@WebServlet("/map.png")
+@WebServlet("/image")
 public class MapImageServlet extends HttpServlet {
 
     @Override
@@ -23,40 +23,26 @@ public class MapImageServlet extends HttpServlet {
         MapRuntimeManager.noteActivity();
         MapRuntimeManager.ensureStarted();
 
-        // NEW: support multiple maps by name.
-        // Usage:
-        //   /map.png?name=office   -> serves image for office.json
-        //   /map.png              -> backward-compatible: serves default map (first loaded)
-        String name = req.getParameter("name");
+        String mapName = req.getParameter("map");
 
-        mapData map;
-        if (name != null && !name.isEmpty()) {
-            // serve requested map by base filename
-            map = MapRuntimeManager.getMapByName(name);
-            if (map == null) {
-                resp.sendError(HttpServletResponse.SC_NOT_FOUND,
-                        "Map not found: " + name + " (expected " + name + ".json to be loaded)");
-                return;
-            }
-        } else {
-            // backward compatible default map
-            map = MapRuntimeManager.getCurrentMap();
-            if (map == null) {
-                resp.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                        "Map not available (not started or failed to start)");
-                return;
-            }
+        // No default listing: require map=...
+        if (mapName == null || mapName.isEmpty()) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
+                    "Missing required parameter: map (example: /image?map=office)");
+            return;
         }
 
-        // Render on demand (keeps old behavior)
+        // Render requested map
+        mapData map = MapRuntimeManager.getMapByName(mapName);
+        if (map == null) {
+            resp.sendError(HttpServletResponse.SC_NOT_FOUND,
+                    "Map not found: " + mapName + " (expected " + mapName + ".json to be loaded)");
+            return;
+        }
+
         BufferedImage img = MapScreenshotUtil.renderMapToImage(map);
 
         resp.setContentType("image/png");
-        // Optional: avoid caching if you always want up-to-date image
-        // resp.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-
         ImageIO.write(img, "png", resp.getOutputStream());
-        //System.out.println("user.dir = " + System.getProperty("user.dir"));
-
     }
 }

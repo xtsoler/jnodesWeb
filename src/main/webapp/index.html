@@ -1,19 +1,115 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta charset="UTF-8">
-        <title>Map Snapshot Demo</title>
+        <meta charset="UTF-8" />
+        <title>Map Viewer</title>
+        <link rel="icon" type="image/png" href="jnodes.png">
         <style>
             html, body {
                 margin: 0;
                 padding: 0;
                 height: 100%;
                 width: 100%;
-                overflow: hidden;
                 background: #111;
                 color: #eee;
                 font-family: sans-serif;
             }
+
+            /* ================= LIST PAGE ================= */
+            #listPage {
+                height: 100%;
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            #listCard {
+                width: min(760px, calc(100vw - 40px));
+                max-height: min(80vh, 680px);
+                overflow: auto;
+                background: rgba(0, 0, 0, 0.55);
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                border-radius: 16px;
+                padding: 18px 18px 14px;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+            }
+
+            #listHeader {
+                display: flex;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: 12px;
+                margin-bottom: 12px;
+            }
+
+            #listHeader .title {
+                font-size: 1.05em;
+                color: #e8e8e8;
+            }
+
+            #listHeader .subtitle {
+                font-size: 0.85em;
+                color: #aaa;
+                white-space: nowrap;
+            }
+
+            #mapsGrid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 10px;
+            }
+
+            .mapTile {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px;
+                border-radius: 12px;
+                cursor: pointer;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: rgba(255,255,255,0.04);
+                transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+            }
+
+            .mapTile:hover {
+                transform: translateY(-1px);
+                background: rgba(255,255,255,0.06);
+                border-color: rgba(0,224,198,0.28);
+            }
+
+            .mapName {
+                font-size: 0.95em;
+                color: #f0f0f0;
+                overflow: hidden;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+            }
+
+            .openHint {
+                font-size: 0.8em;
+                color: #00e0c6;
+                opacity: 0.9;
+            }
+
+            #listStatus {
+                margin-top: 12px;
+                font-size: 0.9em;
+                color: #00e0c6;
+                background: rgba(0, 0, 0, 0.35);
+                padding: 8px 10px;
+                border-radius: 10px;
+                display: inline-block;
+            }
+
+            /* ================= MAP PAGE ================= */
+            #mapPage {
+                display: none;
+                height: 100%;
+                width: 100%;
+            }
+
             #container {
                 width: 100vw;
                 height: 100vh;
@@ -22,117 +118,198 @@
                 justify-content: center;
                 background: #111;
             }
+
             #mapCanvas {
                 background: #222;
             }
+
             #status {
                 position: fixed;
                 bottom: 8px;
                 left: 8px;
                 font-size: 0.9em;
-                color: #00e0c6; /* bright teal */
-                background: rgba(0, 0, 0, 0.45); /* subtle dark backdrop */
+                color: #00e0c6;
+                background: rgba(0, 0, 0, 0.45);
                 padding: 6px 10px;
                 border-radius: 6px;
-                backdrop-filter: blur(4px); /* softens the look on supported browsers */
+                backdrop-filter: blur(4px);
+            }
+
+            /* ================= HOME ICON ================= */
+            #homeBtn {
+                position: fixed;
+                top: 10px;
+                left: 10px;
+                z-index: 30;
+                width: 38px;
+                height: 38px;
+                border-radius: 12px;
+                background: rgba(0, 0, 0, 0.55);
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                backdrop-filter: blur(8px);
+                box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            }
+
+            .homeIcon {
+                position: relative;
+                width: 16px;
+                height: 16px;
+            }
+
+            .homeIcon::before {
+                content: "";
+                position: absolute;
+                left: 50%;
+                top: 1px;
+                width: 10px;
+                height: 10px;
+                border-left: 2px solid #eee;
+                border-top: 2px solid #eee;
+                transform: translateX(-50%) rotate(45deg);
+            }
+
+            .homeIcon::after {
+                content: "";
+                position: absolute;
+                left: 50%;
+                bottom: 0;
+                width: 12px;
+                height: 9px;
+                border: 2px solid #eee;
+                border-top: none;
+                transform: translateX(-50%);
+            }
+
+            #homeBtn:hover .homeIcon::before,
+            #homeBtn:hover .homeIcon::after {
+                border-color: #00e0c6;
             }
         </style>
     </head>
     <body>
-        <div id="container">
-            <canvas id="mapCanvas"></canvas>
+        <!-- LIST MODE -->
+        <div id="listPage">
+            <div id="listCard">
+                <div id="listHeader">
+                    <div class="title">Available maps</div>
+                    <div class="subtitle">Click a map to open in a new window</div>
+                </div>
+                <div id="mapsGrid"></div>
+                <div id="listStatus">Loading…</div>
+            </div>
         </div>
-        <div id="status">Waiting for first image...</div>
+
+        <!-- MAP MODE -->
+        <div id="mapPage">
+            <div id="container">
+                <canvas id="mapCanvas"></canvas>
+            </div>
+            <div id="homeBtn" title="Back to map list">
+                <span class="homeIcon"></span>
+            </div>
+            <div id="status">Loading…</div>
+        </div>
 
         <script>
-            const REFRESH_MS = 4000;          // refresh interval
-            const IMG_URL_BASE = 'map.png';   // adjust if needed
+            const IMAGE_ENDPOINT = 'image';
+            const LIST_ENDPOINT = 'list';
+            const REFRESH_MS = 4000;
 
-            const canvas = document.getElementById('mapCanvas');
-            const ctx = canvas.getContext('2d');
-
-            // offscreen buffer (always holds image at native size)
-            const bufferCanvas = document.createElement('canvas');
-            const bufferCtx = bufferCanvas.getContext('2d');
-
-            const statusEl = document.getElementById('status');
-
-            // last loaded image dimensions
-            let lastImgWidth = 0;
-            let lastImgHeight = 0;
-            let hasImage = false;
-
-            function updateStatus(text) {
-                statusEl.textContent = text;
+            function getMapParam() {
+                return new URL(window.location.href).searchParams.get('map');
             }
 
-            function resizeCanvasToWindow() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                // if we already have an image, redraw it scaled to new size
-                if (hasImage) {
-                    drawScaledFromBuffer();
+            function buildIndex(map) {
+                const u = new URL(window.location.href);
+                map ? u.searchParams.set('map', map) : u.searchParams.delete('map');
+                return u.toString();
+            }
+
+            /* -------- LIST MODE -------- */
+            async function loadMapList() {
+                try {
+                    const res = await fetch(LIST_ENDPOINT);
+                    const data = await res.json();
+                    const maps = data.maps || [];
+
+                    const grid = document.getElementById('mapsGrid');
+                    grid.innerHTML = '';
+
+                    maps.forEach(name => {
+                        const tile = document.createElement('div');
+                        tile.className = 'mapTile';
+                        tile.innerHTML = `<div class="mapName">${name}</div><div class="openHint">Open ↗</div>`;
+                        tile.onclick = () => window.open(buildIndex(name), '_blank', 'noopener');
+                        grid.appendChild(tile);
+                    });
+
+                    document.getElementById('listStatus').textContent =
+                            maps.length ? `Loaded ${maps.length} map(s)` : 'No maps available';
+
+                } catch (e) {
+                    document.getElementById('listStatus').textContent = 'Error loading map list';
                 }
             }
 
-            function drawScaledFromBuffer() {
-                if (!hasImage || lastImgWidth === 0 || lastImgHeight === 0)
+            /* -------- MAP MODE -------- */
+            const canvas = document.getElementById('mapCanvas');
+            const ctx = canvas.getContext('2d');
+            const buffer = document.createElement('canvas');
+            const bctx = buffer.getContext('2d');
+            let mapName = null, timer = null;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                draw();
+            }
+
+            function draw() {
+                if (!buffer.width)
                     return;
-
-                const cw = canvas.width;
-                const ch = canvas.height;
-                const iw = lastImgWidth;
-                const ih = lastImgHeight;
-
-                // scale to fit inside the window, preserving aspect ratio
-                const scale = Math.min(cw / iw, ch / ih);
-                const drawWidth = iw * scale;
-                const drawHeight = ih * scale;
-
-                const offsetX = (cw - drawWidth) / 2;
-                const offsetY = (ch - drawHeight) / 2;
-
-                ctx.clearRect(0, 0, cw, ch);
-                ctx.drawImage(bufferCanvas, 0, 0, iw, ih, offsetX, offsetY, drawWidth, drawHeight);
+                const s = Math.min(canvas.width / buffer.width, canvas.height / buffer.height);
+                const w = buffer.width * s, h = buffer.height * s;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(buffer, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
             }
 
-            function loadAndDraw() {
+            function refresh() {
                 const img = new Image();
-                // avoid cached version
-                img.src = IMG_URL_BASE + '?t=' + Date.now();
-
+                img.src = `${IMAGE_ENDPOINT}?map=${encodeURIComponent(mapName)}&t=${Date.now()}`;
                 img.onload = () => {
-                    lastImgWidth = img.width;
-                    lastImgHeight = img.height;
-                    hasImage = true;
-
-                    // resize buffer to image size
-                    bufferCanvas.width = img.width;
-                    bufferCanvas.height = img.height;
-
-                    // draw full image onto buffer at native resolution
-                    bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height);
-                    bufferCtx.drawImage(img, 0, 0);
-
-                    // ensure canvas matches window size, then draw scaled
-                    resizeCanvasToWindow();
-                    updateStatus('Last update: ' + new Date().toLocaleTimeString());
-                };
-
-                img.onerror = () => {
-                    updateStatus('Error loading map.png');
+                    buffer.width = img.width;
+                    buffer.height = img.height;
+                    bctx.drawImage(img, 0, 0);
+                    document.getElementById('status').textContent =
+                            `Map: ${mapName} • ${new Date().toLocaleTimeString()}`;
+                    resize();
                 };
             }
 
-            // initial sizing + first load
-            resizeCanvasToWindow();
-            loadAndDraw();
+            function start() {
+                refresh();
+                timer = setInterval(refresh, REFRESH_MS);
+                window.addEventListener('resize', resize);
+            }
 
-            // periodic refresh
-            setInterval(loadAndDraw, REFRESH_MS);
+            document.getElementById('homeBtn').onclick = () =>
+                window.location.href = buildIndex(null);
 
-            // handle window resize
-            window.addEventListener('resize', resizeCanvasToWindow);
+            /* -------- BOOT -------- */
+            mapName = getMapParam();
+            if (!mapName) {
+                document.getElementById('mapPage').style.display = 'none';
+                document.getElementById('listPage').style.display = 'flex';
+                loadMapList();
+            } else {
+                document.getElementById('listPage').style.display = 'none';
+                document.getElementById('mapPage').style.display = 'block';
+                start();
+            }
         </script>
     </body>
 </html>
