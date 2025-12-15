@@ -161,9 +161,6 @@ $CATALINA_BASE/webapps/jnodesWeb.war
 - Jakarta Servlet API
 - Java AWT (for image rendering)
 
-Dependencies are resolved via Maven.  
-No JARs are committed to the repository.
-
 ---
 
 ## Design Goals
