@@ -1,10 +1,11 @@
 # jnodesWeb
 
-**jnodesWeb** is the web-based visualization component of the **jnodes** ecosystem.  
+**jnodesWeb** is the web-based visualization component of the **jnodes** ecosystem.
+See https://github.com/xtsoler/jnodesOne for the desktop map editor application.
 It exposes live-rendered network topology maps as images and provides a minimal web UI
 for browsing and viewing those maps in real time.
 
-The project is designed to run inside **Apache Tomcat** and integrates directly with
+The project is designed to run inside **Apache Tomcat** (should also work with jetty) and integrates directly with
 the core `jnodesOne` runtime and storage layer.
 
 ---
@@ -132,25 +133,61 @@ This allows jnodesWeb to remain lightweight when not actively used.
 
 ---
 
-## Build & Deployment
+## Deployment
 
-### Requirements
+In a debian 12 system for example:
+sudo apt install openjdk-17-jre
+sudo useradd -r -m -U -d /opt/tomcat -s /bin/false tomcat
+cd /tmp
+wget https://dlcdn.apache.org/tomcat/tomcat-11/v11.0.15/bin/apache-tomcat-11.0.15.tar.gz # *adjust for later verion
+sudo mkdir -p /opt/tomcat
+sudo tar xzf apache-tomcat-11.0.15.tar.gz -C /opt/tomcat --strip-components=1
+sudo chown -R tomcat:tomcat /opt/tomcat
+sudo nano /etc/systemd/system/tomcat.service
 
-- Java 17+
-- Apache Tomcat 10+
-- Maven 3.8+
+Contents of the service file:
+[Unit]
+Description=Apache Tomcat 11
+After=network.target
 
-### Build
+[Service]
+Type=forking
 
-```bash
-mvn clean package
-```
+User=tomcat
+Group=tomcat
 
-Deploy the generated WAR to Tomcat:
+Environment="JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64"
+Environment="CATALINA_HOME=/opt/tomcat"
+Environment="CATALINA_BASE=/opt/tomcat"
+Environment="CATALINA_OPTS=-Xms256M -Xmx1024M"
+Environment="JAVA_OPTS=-Djava.awt.headless=true"
 
-```
-$CATALINA_BASE/webapps/jnodesWeb.war
-```
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable --now tomcat
+cd /opt/tomcat/webapps
+sudo -u tomcat wget https://github.com/xtsoler/jnodesWeb/releases/latest/download/jnodesWeb.war
+
+Then place your icons folder from jnodesOne into /opt/tomcat/conf/jnodesWeb/ as well as the map json files and the encryption.key file.
+
+/opt/tomcat/conf/jnodesWeb# ls -lah
+total 52K
+drwxr-x--- 3 tomcat tomcat 4.0K Dec 15 16:46 .
+drwx------ 4 tomcat tomcat 4.0K Dec 15 16:42 ..
+-rw-r--r-- 1 root   root     10 Dec 15 16:44 encryption.key
+drwxr-xr-x 2 root   root   4.0K Dec 15 16:46 icons
+-rw-r--r-- 1 root   root   9.1K Dec 15 16:44 map.json
+-rw-r--r-- 1 root   root    21K Dec 15 16:44 map_uh.json
+
+Navigating to http://your_server:8080/jnodesWeb/ should now work
 
 ---
 
