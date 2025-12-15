@@ -8,6 +8,8 @@ for browsing and viewing those maps in real time.
 The project is designed to run inside **Apache Tomcat** (should also work with jetty) and integrates directly with
 the core `jnodesOne` runtime and storage layer.
 
+Live demo: https://demo.jnodes.net
+
 ---
 
 ## Features
