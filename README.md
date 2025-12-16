@@ -138,6 +138,7 @@ This allows jnodesWeb to remain lightweight when not actively used.
 ## Deployment
 
 In a debian 12 system for example:
+```bash
 sudo apt install openjdk-17-jre
 sudo useradd -r -m -U -d /opt/tomcat -s /bin/false tomcat
 cd /tmp
@@ -146,8 +147,10 @@ sudo mkdir -p /opt/tomcat
 sudo tar xzf apache-tomcat-11.0.15.tar.gz -C /opt/tomcat --strip-components=1
 sudo chown -R tomcat:tomcat /opt/tomcat
 sudo nano /etc/systemd/system/tomcat.service
+```
 
 Contents of the service file:
+```bash
 [Unit]
 Description=Apache Tomcat 11
 After=network.target
@@ -171,15 +174,17 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-
+```
+```bash
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable --now tomcat
 cd /opt/tomcat/webapps
 sudo -u tomcat wget https://github.com/xtsoler/jnodesWeb/releases/latest/download/jnodesWeb.war
-
+```
 Then place your icons folder from jnodesOne into /opt/tomcat/conf/jnodesWeb/ as well as the map json files and the encryption.key file.
 
+```bash
 /opt/tomcat/conf/jnodesWeb# ls -lah
 total 52K
 drwxr-x--- 3 tomcat tomcat 4.0K Dec 15 16:46 .
@@ -188,10 +193,12 @@ drwx------ 4 tomcat tomcat 4.0K Dec 15 16:42 ..
 drwxr-xr-x 2 root   root   4.0K Dec 15 16:46 icons
 -rw-r--r-- 1 root   root   9.1K Dec 15 16:44 map.json
 -rw-r--r-- 1 root   root    21K Dec 15 16:44 map_uh.json
+```
 
 *Required change to allow java runtime to use icmp to check host availability:
+```bash
 sudo setcap cap_net_raw+ep $(readlink -f $(which java))
-
+```
 Navigating to http://your_server:8080/jnodesWeb/ should now work
 
 ---
