@@ -1,7 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
     <head>
         <meta charset="UTF-8" />
+        <meta name="viewport" id="viewportMeta"
+              content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no" />
         <title>Map Viewer</title>
         <link rel="icon" type="image/png" href="jnodes.png">
         <style>
@@ -10,6 +12,7 @@
                 padding: 0;
                 height: 100%;
                 width: 100%;
+                overflow: hidden;
                 background: #111;
                 color: #eee;
                 font-family: sans-serif;
@@ -106,13 +109,13 @@
             /* ================= MAP PAGE ================= */
             #mapPage {
                 display: none;
-                height: 100%;
-                width: 100%;
+                height: 100dvh;
+                width: 100vw;
             }
 
             #container {
                 width: 100vw;
-                height: 100vh;
+                height: 100dvh;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -121,6 +124,8 @@
 
             #mapCanvas {
                 background: #222;
+                touch-action: none;
+                display: block;
             }
 
             #status {
@@ -199,7 +204,7 @@
                     <div class="subtitle">Click a map to open in a new window</div>
                 </div>
                 <div id="mapsGrid"></div>
-                <div id="listStatus">Loading…</div>
+                <div id="listStatus">Loading...</div>
             </div>
         </div>
 
@@ -211,13 +216,14 @@
             <div id="homeBtn" title="Back to map list">
                 <span class="homeIcon"></span>
             </div>
-            <div id="status">Loading…</div>
+            <div id="status">Loading...</div>
         </div>
 
         <script>
             const IMAGE_ENDPOINT = 'image';
             const LIST_ENDPOINT = 'list';
             const REFRESH_MS = 4000;
+            const MAX_ZOOM = 6;
 
             function getMapParam() {
                 return new URL(window.location.href).searchParams.get('map');
@@ -242,7 +248,7 @@
                     maps.forEach(name => {
                         const tile = document.createElement('div');
                         tile.className = 'mapTile';
-                        tile.innerHTML = `<div class="mapName">${name}</div><div class="openHint">Open ↗</div>`;
+                        tile.innerHTML = `<div class="mapName">${name}</div><div class="openHint">Open</div>`;
                         tile.onclick = () => window.open(buildIndex(name), '_blank', 'noopener');
                         grid.appendChild(tile);
                     });
@@ -261,23 +267,84 @@
             const buffer = document.createElement('canvas');
             const bctx = buffer.getContext('2d');
             let mapName = null, timer = null;
+            const viewportMeta = document.getElementById('viewportMeta');
+            let baseScale = 1;
+            let zoom = 1;       // user zoom factor relative to the fitted view
+            let offsetX = 0, offsetY = 0;
+            const pointers = new Map();
+            let pinchStartDist = null, pinchStartZoom = 1;
+            let lastPan = null;
 
-            function resize() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                draw();
+            function setViewportMode(mode) {
+                if (!viewportMeta) return;
+                // Disable native page zoom; pinch handled internally on canvas.
+                viewportMeta.setAttribute('content',
+                    'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no');
+            }
+
+            function clampZoom(z) {
+                return Math.min(MAX_ZOOM, Math.max(1, z));
+            }
+
+            function computeBaseScale() {
+                if (!buffer.width || !buffer.height) return 1;
+                return Math.min(canvas.width / buffer.width, canvas.height / buffer.height);
+            }
+
+            function clampOffsets(scale) {
+                if (!buffer.width || !buffer.height) return;
+                const imgW = buffer.width * scale;
+                const imgH = buffer.height * scale;
+                const minX = Math.min(0, canvas.width - imgW);
+                const maxX = Math.max(0, canvas.width - imgW);
+                const minY = Math.min(0, canvas.height - imgH);
+                const maxY = Math.max(0, canvas.height - imgH);
+                offsetX = Math.min(maxX, Math.max(minX, offsetX));
+                offsetY = Math.min(maxY, Math.max(minY, offsetY));
+            }
+
+            function currentAnchor(canvasX = canvas.width / 2, canvasY = canvas.height / 2) {
+                if (!buffer.width) return { canvasX, canvasY, imgX: 0, imgY: 0 };
+                const scale = baseScale * zoom;
+                return {
+                    canvasX,
+                    canvasY,
+                    imgX: (canvasX - offsetX) / scale,
+                    imgY: (canvasY - offsetY) / scale
+                };
+            }
+
+            function restoreAnchor(anchor) {
+                const scale = baseScale * zoom;
+                offsetX = anchor.canvasX - anchor.imgX * scale;
+                offsetY = anchor.canvasY - anchor.imgY * scale;
             }
 
             function draw() {
                 if (!buffer.width)
                     return;
-                const s = Math.min(canvas.width / buffer.width, canvas.height / buffer.height);
-                const w = buffer.width * s, h = buffer.height * s;
+                const scale = baseScale * zoom;
+                clampOffsets(scale);
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(buffer, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+                ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+                ctx.drawImage(buffer, 0, 0);
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+            }
+
+            function resize() {
+                const anchor = currentAnchor();
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                baseScale = computeBaseScale();
+                zoom = clampZoom(zoom);
+                restoreAnchor(anchor);
+                draw();
             }
 
             function refresh() {
+                const hadImage = buffer.width > 0 && buffer.height > 0;
+                const anchor = hadImage ? currentAnchor() : null;
                 const img = new Image();
                 img.src = `${IMAGE_ENDPOINT}?map=${encodeURIComponent(mapName)}&t=${Date.now()}`;
                 img.onload = () => {
@@ -285,15 +352,102 @@
                     buffer.height = img.height;
                     bctx.drawImage(img, 0, 0);
                     document.getElementById('status').textContent =
-                            `Map: ${mapName} • ${new Date().toLocaleTimeString()}`;
-                    resize();
+                            `Map: ${mapName} - ${new Date().toLocaleTimeString()}`;
+                    baseScale = computeBaseScale();
+                    if (hadImage && anchor) {
+                        zoom = clampZoom(zoom);
+                        restoreAnchor(anchor);
+                    } else {
+                        zoom = 1;
+                        const fitScale = baseScale * zoom;
+                        offsetX = (canvas.width - buffer.width * fitScale) / 2;
+                        offsetY = (canvas.height - buffer.height * fitScale) / 2;
+                    }
+                    draw();
                 };
             }
 
+            function applyZoom(targetZoom, focus) {
+                if (!buffer.width) return;
+                const prevScale = baseScale * zoom;
+                const focusPoint = focus || { x: canvas.width / 2, y: canvas.height / 2 };
+                const imgX = (focusPoint.x - offsetX) / prevScale;
+                const imgY = (focusPoint.y - offsetY) / prevScale;
+
+                zoom = clampZoom(targetZoom);
+                const nextScale = baseScale * zoom;
+                offsetX = focusPoint.x - imgX * nextScale;
+                offsetY = focusPoint.y - imgY * nextScale;
+                draw();
+            }
+
+            function distance(p1, p2) {
+                const dx = p1.x - p2.x, dy = p1.y - p2.y;
+                return Math.hypot(dx, dy);
+            }
+
+            function pointerCenter() {
+                const pts = Array.from(pointers.values());
+                return {
+                    x: (pts[0].x + pts[1].x) / 2,
+                    y: (pts[0].y + pts[1].y) / 2
+                };
+            }
+
+            function onPointerDown(e) {
+                e.preventDefault();
+                canvas.setPointerCapture(e.pointerId);
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pointers.size === 1) {
+                    lastPan = { x: e.clientX, y: e.clientY };
+                } else if (pointers.size === 2) {
+                    const pts = Array.from(pointers.values());
+                    pinchStartDist = distance(pts[0], pts[1]);
+                    pinchStartZoom = zoom;
+                    lastPan = null; // disable panning during pinch
+                }
+            }
+
+            function onPointerMove(e) {
+                if (!pointers.has(e.pointerId)) return;
+                e.preventDefault();
+                pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                if (pointers.size === 2) {
+                    const pts = Array.from(pointers.values());
+                    const dist = distance(pts[0], pts[1]);
+                    if (pinchStartDist) {
+                        const factor = dist / pinchStartDist;
+                        applyZoom(pinchStartZoom * factor, pointerCenter());
+                    }
+                } else if (pointers.size === 1 && zoom > 1) {
+                    const pt = Array.from(pointers.values())[0];
+                    if (lastPan) {
+                        offsetX += (pt.x - lastPan.x);
+                        offsetY += (pt.y - lastPan.y);
+                        clampOffsets(baseScale * zoom);
+                        draw();
+                    }
+                    lastPan = { x: pt.x, y: pt.y };
+                }
+            }
+
+            function endPointer(e) {
+                pointers.delete(e.pointerId);
+                pinchStartDist = null;
+                if (pointers.size === 1) {
+                    const remaining = Array.from(pointers.values())[0];
+                    lastPan = { x: remaining.x, y: remaining.y };
+                } else {
+                    lastPan = null;
+                }
+            }
+
             function start() {
+                resize();
                 refresh();
                 timer = setInterval(refresh, REFRESH_MS);
                 window.addEventListener('resize', resize);
+                window.addEventListener('orientationchange', resize);
             }
 
             document.getElementById('homeBtn').onclick = () =>
@@ -304,12 +458,21 @@
             if (!mapName) {
                 document.getElementById('mapPage').style.display = 'none';
                 document.getElementById('listPage').style.display = 'flex';
+                setViewportMode('list');
                 loadMapList();
             } else {
                 document.getElementById('listPage').style.display = 'none';
                 document.getElementById('mapPage').style.display = 'block';
+                setViewportMode('map');
                 start();
             }
+
+            canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+            canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+            canvas.addEventListener('pointerup', endPointer);
+            canvas.addEventListener('pointercancel', endPointer);
         </script>
     </body>
 </html>
+
+
