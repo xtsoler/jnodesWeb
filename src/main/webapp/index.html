@@ -274,6 +274,10 @@
             const pointers = new Map();
             let pinchStartDist = null, pinchStartZoom = 1;
             let lastPan = null;
+            let isInteracting = false;
+            let hasUserInteracted = false;
+            let pendingImage = null;
+            let pendingTimestamp = null;
 
             function setViewportMode(mode) {
                 if (!viewportMeta) return;
@@ -333,37 +337,56 @@
             }
 
             function resize() {
-                const anchor = currentAnchor();
+                const shouldCenter = !hasUserInteracted && zoom === 1;
+                const anchor = shouldCenter ? null : currentAnchor();
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
                 baseScale = computeBaseScale();
                 zoom = clampZoom(zoom);
-                restoreAnchor(anchor);
+                if (shouldCenter && buffer.width) {
+                    const fitScale = baseScale * zoom;
+                    offsetX = (canvas.width - buffer.width * fitScale) / 2;
+                    offsetY = (canvas.height - buffer.height * fitScale) / 2;
+                } else if (anchor) {
+                    restoreAnchor(anchor);
+                }
+                draw();
+            }
+
+            function applyImage(img, timestamp) {
+                const hadImage = buffer.width > 0 && buffer.height > 0;
+                const shouldCenter = !hasUserInteracted && zoom === 1;
+                const anchor = (!shouldCenter && hadImage) ? currentAnchor() : null;
+
+                buffer.width = img.width;
+                buffer.height = img.height;
+                bctx.drawImage(img, 0, 0);
+                document.getElementById('status').textContent =
+                        `Map: ${mapName} - ${timestamp.toLocaleTimeString()}`;
+
+                baseScale = computeBaseScale();
+                if (!hadImage || shouldCenter) {
+                    zoom = 1;
+                    const fitScale = baseScale * zoom;
+                    offsetX = (canvas.width - buffer.width * fitScale) / 2;
+                    offsetY = (canvas.height - buffer.height * fitScale) / 2;
+                } else if (anchor) {
+                    zoom = clampZoom(zoom);
+                    restoreAnchor(anchor);
+                }
                 draw();
             }
 
             function refresh() {
-                const hadImage = buffer.width > 0 && buffer.height > 0;
-                const anchor = hadImage ? currentAnchor() : null;
                 const img = new Image();
                 img.src = `${IMAGE_ENDPOINT}?map=${encodeURIComponent(mapName)}&t=${Date.now()}`;
                 img.onload = () => {
-                    buffer.width = img.width;
-                    buffer.height = img.height;
-                    bctx.drawImage(img, 0, 0);
-                    document.getElementById('status').textContent =
-                            `Map: ${mapName} - ${new Date().toLocaleTimeString()}`;
-                    baseScale = computeBaseScale();
-                    if (hadImage && anchor) {
-                        zoom = clampZoom(zoom);
-                        restoreAnchor(anchor);
-                    } else {
-                        zoom = 1;
-                        const fitScale = baseScale * zoom;
-                        offsetX = (canvas.width - buffer.width * fitScale) / 2;
-                        offsetY = (canvas.height - buffer.height * fitScale) / 2;
+                    if (isInteracting) {
+                        pendingImage = img;
+                        pendingTimestamp = new Date();
+                        return;
                     }
-                    draw();
+                    applyImage(img, new Date());
                 };
             }
 
@@ -398,6 +421,7 @@
                 e.preventDefault();
                 canvas.setPointerCapture(e.pointerId);
                 pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                isInteracting = true;
                 if (pointers.size === 1) {
                     lastPan = { x: e.clientX, y: e.clientY };
                 } else if (pointers.size === 2) {
@@ -418,6 +442,7 @@
                     if (pinchStartDist) {
                         const factor = dist / pinchStartDist;
                         applyZoom(pinchStartZoom * factor, pointerCenter());
+                        hasUserInteracted = true;
                     }
                 } else if (pointers.size === 1 && zoom > 1) {
                     const pt = Array.from(pointers.values())[0];
@@ -426,6 +451,7 @@
                         offsetY += (pt.y - lastPan.y);
                         clampOffsets(baseScale * zoom);
                         draw();
+                        hasUserInteracted = true;
                     }
                     lastPan = { x: pt.x, y: pt.y };
                 }
@@ -439,6 +465,16 @@
                     lastPan = { x: remaining.x, y: remaining.y };
                 } else {
                     lastPan = null;
+                }
+                if (pointers.size === 0) {
+                    isInteracting = false;
+                    if (pendingImage) {
+                        const img = pendingImage;
+                        const ts = pendingTimestamp || new Date();
+                        pendingImage = null;
+                        pendingTimestamp = null;
+                        applyImage(img, ts);
+                    }
                 }
             }
 
