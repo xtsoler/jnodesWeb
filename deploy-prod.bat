@@ -5,6 +5,10 @@ rem === CONFIG ===
 set "WAR_NAME=jnodesWeb.war"
 set "PROJECT_DIR=%~dp0"
 set "WAR_PATH=%PROJECT_DIR%target\%WAR_NAME%"
+set "JNODESONE_JAR=jnodesOne-jar-with-dependencies.jar"
+set "JNODESONE_SRC_JAR=%PROJECT_DIR%..\jnodesOne\target\%JNODESONE_JAR%"
+set "JNODESWEB_LIB_JAR=%PROJECT_DIR%lib\%JNODESONE_JAR%"
+set "MVN_BUILD_ARGS=-U package"
 
 rem Remote host settings
 set "REMOTE_USER=root"            rem change to your SSH user
@@ -18,10 +22,24 @@ rem Prefer Windows built-in OpenSSH if present
 set "SSH_CMD=%SystemRoot%\System32\OpenSSH\ssh.exe"
 if not exist "%SSH_CMD%" set "SSH_CMD=ssh"
 
-rem === Build WAR (always rebuild) ===
+rem === Sync jnodesOne jar if newer ===
+set "JAR_SYNC=UNCHANGED"
+for /f "delims=" %%R in ('powershell -NoProfile -Command "$src='%JNODESONE_SRC_JAR%'; $dst='%JNODESWEB_LIB_JAR%'; if (!(Test-Path -LiteralPath $src)) { 'SRC_MISSING' } elseif (!(Test-Path -LiteralPath $dst) -or ((Get-Item -LiteralPath $src).LastWriteTimeUtc -gt (Get-Item -LiteralPath $dst).LastWriteTimeUtc)) { Copy-Item -LiteralPath $src -Destination $dst -Force; 'COPIED' } else { 'UNCHANGED' }"') do (
+  set "JAR_SYNC=%%R"
+)
+
+if "%JAR_SYNC%"=="COPIED" (
+  echo Updated lib\%JNODESONE_JAR% from jnodesOne target jar.
+  set "MVN_BUILD_ARGS=-U clean package"
+) else if "%JAR_SYNC%"=="SRC_MISSING" (
+  echo WARNING: Source jar not found: %JNODESONE_SRC_JAR%
+  echo Continuing without syncing jnodesOne jar.
+)
+
+rem === Build WAR ===
 echo Building WAR...
 pushd "%PROJECT_DIR%" || exit /b 1
-call mvn -U clean package || (
+call mvn %MVN_BUILD_ARGS% || (
   echo Maven build failed.
   popd
   exit /b 1

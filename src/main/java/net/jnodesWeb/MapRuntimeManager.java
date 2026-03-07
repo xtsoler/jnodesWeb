@@ -59,6 +59,9 @@ public class MapRuntimeManager {
                 }
 
                 Main.encryption_password = Files.readString(encryptionFile).trim();
+                // jnodesWeb is read-only map rendering; interface discovery is not needed.
+                // Disable automatic per-node interface scans to avoid unnecessary SNMP side effects.
+                storage.setAutoDiscoverInterfacesEnabled(false);
 
                 System.out.println("[MapRuntimeManager] Starting maps, loading *.json from: " + jnodesConfDir);
 
