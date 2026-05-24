@@ -195,10 +195,11 @@ drwxr-xr-x 2 root   root   4.0K Dec 15 16:46 icons
 -rw-r--r-- 1 root   root    21K Dec 15 16:44 map_uh.json
 ```
 
-*Required change to allow java runtime to use icmp to check host availability:
+*Required change to allow java runtime to use icmp to check host availability if running on Linux:
 ```bash
 sudo setcap cap_net_raw+ep $(readlink -f $(which java))
 ```
+(This needs to run everytime the Java runtime is updated, otherwise some hosts won't be pingable through the JVM)
 Navigating to http://your_server:8080/jnodesWeb/ should now work
 
 ---
